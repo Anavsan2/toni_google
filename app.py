@@ -1,64 +1,61 @@
 import streamlit as st
 from google import genai
-from google.genai import types
-import time # Para el manejo de esperas
 
-st.set_page_config(page_title="Toni AI Art", page_icon="🎨")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Toni Fútbol Club", page_icon="⚽")
+st.title("⚽ Toni Fútbol Chatbot")
+st.markdown("¡Pregúntame lo que quieras sobre ligas, jugadores o historia del fútbol!")
 
-# --- ESTILOS ---
-st.markdown("<style>.stButton>button { background-color: #4285F4; color: white; }</style>", unsafe_allow_html=True)
-
-st.title("🎨 Toni AI: Generador de Conceptos")
-
+# --- SIDEBAR ---
 with st.sidebar:
-    st.header("🔑 Conexión")
-    api_key = st.text_input("Gemini API Key:", type="password")
-    st.caption("Si ves un error 429, Toni reintentará automáticamente.")
+    st.header("Configuración")
+    api_key = st.text_input("Introduce tu Gemini API Key:", type="password")
+    st.info("Consíguela gratis en [Google AI Studio](https://aistudio.google.com/)")
 
+# --- LÓGICA DEL CHAT ---
 if api_key:
-    client = genai.Client(api_key=api_key)
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        w1, w2 = st.text_input("P1", "Nieve"), st.text_input("P2", "Neon")
-    with col2:
-        w3, w4 = st.text_input("P3", "Silencio"), st.text_input("P4", "Robot")
-    with col3:
-        w5 = st.text_input("P5", "Azul")
-        style = st.selectbox("Estilo", ["Cyberpunk", "Minimalista", "Épico"])
-
-    if st.button("🚀 Generar con Toni"):
-        prompt_final = f"Vision of {w1}, {w2}, {w3}, {w4}, {w5} in {style} style."
+    try:
+        client = genai.Client(api_key=api_key)
         
-        # --- LÓGICA DE REINTENTO (RETRY LOGIC) ---
-        max_retries = 3
-        retry_delay = 5 # segundos entre intentos
-        success = False
+        # Inicializar el historial del chat si no existe
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
 
-        with st.spinner("Toni está procesando..."):
-            for i in range(max_retries):
+        # Mostrar mensajes previos del chat
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # Input del usuario
+        if prompt := st.chat_input("¿Quién ganó el mundial de 2010?"):
+            # Mostrar mensaje del usuario
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            # Generar respuesta de Toni
+            with st.chat_message("assistant"):
+                # Instrucción secreta para que siempre hable de fútbol
+                full_query = f"Eres Toni, un experto en fútbol. Responde de forma breve y divertida: {prompt}"
+                
                 try:
-                    # Intento de generación (Imagen o Texto)
                     response = client.models.generate_content(
-                        model="gemini-2.0-flash", # Usamos este para asegurar rapidez
-                        contents=f"Describe una obra de arte basada en: {prompt_final} y haz un dibujo ASCII."
+                        model="gemini-2.0-flash", 
+                        contents=full_query
                     )
-                    st.subheader("🖼️ Visión Artística de Toni")
-                    st.markdown(f"> {response.text}")
-                    st.balloons()
-                    success = True
-                    break # Salimos del bucle si funciona
-
+                    respuesta_texto = response.text
+                    st.markdown(respuesta_texto)
+                    
+                    # Guardar respuesta
+                    st.session_state.messages.append({"role": "assistant", "content": respuesta_texto})
+                
                 except Exception as e:
                     if "429" in str(e):
-                        st.warning(f"⚠️ Servidores ocupados. Reintento {i+1}/{max_retries} en {retry_delay}s...")
-                        time.sleep(retry_delay)
+                        st.error("Saturación: Espera 10 segundos y pregunta de nuevo.")
                     else:
                         st.error(f"Error: {e}")
-                        break
-            
-            if not success:
-                st.error("❌ Google está muy saturado ahora mismo. Prueba de nuevo en un minuto.")
 
+    except Exception as e:
+        st.error(f"Error de conexión: {e}")
 else:
-    st.info("Introduce tu API Key para despertar a Toni.")
+    st.warning("👈 Pon tu API Key en el lateral para empezar el partido.")
